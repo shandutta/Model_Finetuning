@@ -1,0 +1,57 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Machine Learning specific
+outputs/*/
+!outputs/.gitkeep
+runs/*/
+!runs/.gitkeep
+logs/*.log
+logs/run_*.log
+logs/tb_*.log
+
+# Model checkpoints and adapters (large files)
+*.bin
+*.safetensors
+checkpoint-*/
+adapter/
+
+# Training data (often too large for Git)
+data/*
+!data/.gitkeep
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# TensorBoard logs (generated)
+events.out.tfevents.*
+
+# Temporary files
+*.tmp
+*.temp

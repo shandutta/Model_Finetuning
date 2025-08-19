@@ -1,0 +1,40 @@
+[project]
+name = "model-finetuning"
+version = "0.1.0"
+description = "QLoRA fine-tuning pipeline for coding assistants using Qwen2.5-Coder-3B-Instruct"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Core ML stack
+    "torch>=2.0.0",
+    "transformers>=4.55.2",
+    "datasets>=4.0.0",
+    "peft>=0.17.0",
+    "trl>=0.21.0",
+    "accelerate>=1.10.0",
+    "bitsandbytes>=0.47.0",
+    
+    # Git data processing (CRITICAL - missing in other suggestions)
+    "gitpython>=3.1.0",
+    "unidiff>=0.7.0",
+    
+    # Support libraries
+    "numpy>=2.1.0",
+    "tqdm>=4.67.0",
+    "tensorboard>=2.17.0",
+    "tokenizers>=0.21.0",
+    "safetensors>=0.6.0",
+    
+    # Optional utilities (remove if unused)
+    "pandas>=2.3.0",
+    "pyarrow>=21.0.0",
+    "xxhash>=3.5.0",
+    "dill>=0.3.8",
+    "fsspec>=2025.3.0",
+    "gcsfs>=2025.3.0",
+]
+
+[tool.uv]
+# CUDA-specific PyTorch index for RTX 2080 Ti compatibility
+index-url = "https://download.pytorch.org/whl/cu118"
+extra-index-url = ["https://pypi.org/simple"]
