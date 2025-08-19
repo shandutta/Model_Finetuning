@@ -93,7 +93,7 @@ args = SFTConfig(
     per_device_eval_batch_size=1,
     eval_accumulation_steps=4,         
 
-    dataloader_num_workers=8,
+    dataloader_num_workers=4,
     dataloader_persistent_workers=True,
     dataloader_pin_memory=True,
     per_device_train_batch_size=1,

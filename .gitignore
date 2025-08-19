@@ -29,6 +29,7 @@ adapter/
 # Training data (often too large for Git)
 data/*
 !data/.gitkeep
+!data/README.md
 
 # Jupyter notebooks checkpoints
 .ipynb_checkpoints/
