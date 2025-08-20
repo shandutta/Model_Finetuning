@@ -17,8 +17,7 @@ data/
 │   └── train.fim.jsonl           # Raw FIM data
 └── staging/                       # Final datasets for training
     ├── train.full.jsonl          # Combined training data
-    ├── eval.full.jsonl           # Evaluation split
-    └── train.full.sample20.jsonl # Small sample for testing
+    └── eval.full.jsonl           # Evaluation split
 ```
 
 ## 🔄 Data Processing Pipeline

@@ -1,30 +1,39 @@
 # Model Fine-Tuning Pipeline
 
-**QLoRA fine-tuning pipeline for coding assistants using Qwen2.5-Coder-3B-Instruct**
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GPU: RTX 2080 Ti+](https://img.shields.io/badge/GPU-RTX%202080%20Ti+-orange)](https://developer.nvidia.com/cuda-gpus)
 
-This project implements a complete pipeline for fine-tuning coding language models using QLoRA (Quantized Low-Rank Adaptation) with multi-source training data including Claude conversation logs, Git commit history, and Fill-in-the-Middle (FIM) examples from actual codebases.
+**Fine-tune coding language models on domain-specific data using QLoRA**
 
-## Project Goals
+This repository provides a complete pipeline for fine-tuning the Qwen2.5-Coder-3B-Instruct model on custom datasets. Train models that understand your specific codebase, coding patterns, and domain knowledge using memory-efficient QLoRA on accessible GPU hardware.
 
-- **Improve code completion and debugging** capabilities of base coding models
-- **Multi-source data integration** for comprehensive training coverage
-- **Memory-efficient training** using 8-bit and 4-bit quantization with LoRA adapters
-- **Reproducible research** with systematic evaluation and comparison tools
+## Features
 
-## Architecture
+- **Memory-efficient training** - QLoRA 8-bit quantization requires only 11GB VRAM
+- **Multi-source data processing** - Combine conversation logs, git history, and code completion examples
+- **Production-ready tools** - Comprehensive monitoring, evaluation, and comparison utilities
+- **Automated workflows** - One-command training with integrated monitoring via tmux
 
-### Data Pipeline
+## Getting Started
+
+### Prerequisites
+
+- **Hardware**: NVIDIA RTX 2080 Ti or better (11GB+ VRAM)
+- **Software**: Python 3.12+, CUDA 11.8+
+- **Storage**: 50GB+ available space
+- **Memory**: 16GB+ RAM recommended
+
+### Installation
+
+```bash
+git clone https://github.com/your-username/Model_Finetuning.git
+cd Model_Finetuning
+uv sync && source .venv/bin/activate
+
+# Verify installation
+# (No verification script available)
 ```
-Claude Logs → SFT Format
-Git History → SFT Format  } → Merged Dataset → Train/Eval Split → QLoRA Training
-Real Code → FIM Examples
-```
-
-### Model Training
-- **Base Model**: `Qwen/Qwen2.5-Coder-3B-Instruct`
-- **Method**: QLoRA with 8-bit quantization (BitsAndBytesConfig)
-- **LoRA Config**: r=32, alpha=64, dropout=0.05
-- **Training**: Early stopping, gradient accumulation, cosine scheduling
 
 ## Project Structure
 
@@ -46,110 +55,92 @@ Model_Finetuning/
 └── logs/                          # Training logs (gitignored)
 ```
 
-## Quick Start
+### Quick Start
 
-### 1. Environment Setup
 ```bash
-# Install dependencies
-uv sync
-
-# Activate environment
-source .venv/bin/activate
-```
-
-### 2. Data Preparation
-```bash
-# Convert Claude logs to SFT format
+# 1. Prepare training data
 python scripts/data_prep/claude_logs/claude2sft.py --src data/claude_logs/ --out data/train.clean.jsonl
+python scripts/data_prep/actual_code/repo2fim.py --repo /path/to/repo --out data/train.fim.jsonl
+python scripts/data_prep/merge_and_split.py data/*.jsonl --name full --eval_frac 0.15
 
-# Generate FIM examples from codebase
-python scripts/data_prep/actual_code/repo2fim.py --repo /path/to/repo --out data/train.fim.jsonl --per_file 6 --max_len 1600
-
-# Merge datasets and create train/eval split
-python scripts/data_prep/merge_and_split.py data/claude_logs/train.clean.jsonl data/actual_code/train.fim.jsonl --name full --eval_frac 0.15
-```
-
-### 3. Training
-```bash
-# Start training with tmux session monitoring
+# 2. Start training with monitoring
 ./scripts.sh tmux-train
 
-# Or direct training
-python scripts/training/sft_qlora_8bit.py
-```
-
-### 4. Evaluation
-```bash
-# Compare baseline vs fine-tuned model
+# 3. Evaluate results
 python scripts/testing/compare_baseline_vs_lora.py \
   --prompt "How do I fix a KeyError in Python?" \
   --ckpt outputs/qwen3b_lora_8bit/checkpoint-650
 ```
 
-## Key Features
-
-### Data Sources
-- **Claude Conversation Logs**: Real debugging and coding assistance conversations
-- **Git Commit History**: Code changes with commit messages as context
-- **Fill-in-the-Middle**: Code completion examples from actual repositories
-
-### Training Optimizations
-- **8-bit quantization** for memory efficiency (11GB VRAM compatible)
-- **LoRA adapters** for parameter-efficient fine-tuning
-- **Early stopping** with validation monitoring
-- **Gradient accumulation** for effective batch size scaling
-
-### Monitoring & Tools
-- **TensorBoard integration** for real-time training metrics
-- **Automated checkpointing** with best model selection
-- **Comparison tools** for baseline vs fine-tuned evaluation
-- **Tmux automation** for multi-window training monitoring
+For detailed workflows and options, see [scripts documentation](#scripts-reference).
 
 ## Training Configuration
 
-### Model Parameters
-- **Base**: Qwen/Qwen2.5-Coder-3B-Instruct
-- **Quantization**: 8-bit with BitsAndBytesConfig
-- **LoRA**: r=32, alpha=64, dropout=0.05
-- **Target modules**: All attention and MLP projections
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Base Model | Qwen/Qwen2.5-Coder-3B-Instruct | Pre-trained coding language model |
+| Method | 8-bit QLoRA | Memory-efficient fine-tuning |
+| LoRA Config | r=32, α=64, dropout=0.05 | Low-rank adaptation parameters |
+| Learning Rate | 2e-5 (cosine schedule) | Training rate with warm-up |
+| Batch Size | 24 (gradient accumulation) | Effective batch size |
+| Max Length | 2048 tokens | Maximum sequence length |
 
-### Training Hyperparameters
-- **Learning rate**: 2e-5 with cosine scheduling
-- **Batch size**: 1 per device, 24 gradient accumulation steps
-- **Max length**: 2048 tokens
-- **Epochs**: 20 with early stopping (patience=6, threshold=0.001)
+## Monitoring
 
-## Hardware Requirements
+Training progress is monitored via TensorBoard and tmux sessions:
 
-- **GPU**: RTX 2080 Ti (11GB VRAM) or better
-- **RAM**: 16GB+ recommended
-- **Storage**: 50GB+ for datasets and checkpoints
-
-## Results & Evaluation
-
-Training metrics and model comparisons are logged via TensorBoard:
 ```bash
+# Start training with integrated monitoring
+./scripts.sh tmux-train
+
+# Manual monitoring commands
+./scripts.sh gpu                    # GPU utilization
+./scripts.sh logs                   # Training logs
 tensorboard --logdir runs/qwen3b_8bit --port 6006
 ```
+
+## Use Cases
+
+- **Code completion** - Generate contextually relevant code suggestions
+- **Debugging assistance** - Provide domain-specific error analysis and fixes  
+- **Code documentation** - Generate documentation matching project style
+- **Codebase Q&A** - Answer questions about specific codebases and patterns
+
+## Scripts Reference
+
+### Data Processing
+- `scripts/data_prep/claude_logs/claude2sft.py` - Convert conversation logs to training format
+- `scripts/data_prep/actual_code/repo2fim.py` - Generate fill-in-the-middle examples from code
+- `scripts/data_prep/merge_and_split.py` - Combine datasets and create train/eval splits
+- `scripts/data_prep/qc_and_dedupe.py` - Quality control and deduplication
+
+### Training
+- `scripts/training/sft_qlora_8bit.py` - Production 8-bit QLoRA training
+- `scripts/training/sft_qlora_4bit.py` - Development 4-bit QLoRA training
+
+### Evaluation
+- `scripts/testing/baseline.py` - Test baseline model performance
+- `scripts/testing/compare_baseline_vs_lora.py` - Compare baseline vs fine-tuned models
+- `scripts/testing/check_lengths.py` - Analyze dataset token length distribution
+
+### Utilities
+- `scripts.sh` - Convenience wrapper with tmux session management
+- Run `./scripts.sh help` for all available commands
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with your data
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License - see LICENSE file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-- **Qwen Team** for the base Qwen2.5-Coder model
-- **Hugging Face** for transformers, datasets, and PEFT libraries
-- **QLoRA authors** for memory-efficient fine-tuning methodology
-
----
-
-*This project demonstrates practical application of QLoRA fine-tuning for coding assistants with multi-source data integration and systematic evaluation.*
+- [Qwen Team](https://github.com/QwenLM/Qwen) for the base Qwen2.5-Coder model
+- [Hugging Face](https://huggingface.co/) for transformers, datasets, and PEFT libraries
+- [QLoRA authors](https://arxiv.org/abs/2305.14314) for memory-efficient fine-tuning methodology

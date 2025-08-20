@@ -100,7 +100,6 @@ case "$1" in
         echo "Training:"
         echo "  ./scripts.sh train              # Start 8-bit training"
         echo "  ./scripts.sh train-log          # Training with logging"
-        echo "  ./scripts.sh train-4bit         # 4-bit training (testing)"
         echo ""
         echo "Testing:"
         echo "  ./scripts.sh test-baseline      # Test baseline model"
