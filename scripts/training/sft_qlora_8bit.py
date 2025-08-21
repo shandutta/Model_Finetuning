@@ -85,7 +85,7 @@ lora = LoraConfig(
 args = SFTConfig(
     output_dir="outputs/qwen3b_lora_8bit",
     report_to=["tensorboard"],
-    logging_dir="runs/qwen3b_8bit",
+    logging_dir=f"runs/qwen3b_8bit",
     logging_steps=1, 
     logging_first_step=True,
     disable_tqdm=False,
@@ -102,11 +102,11 @@ args = SFTConfig(
     # max_steps=10,  # <- uncomment for a dry-run sanity check
 
     num_train_epochs=20,
-    learning_rate=3e-5,                 # cooler than 1e-4
-    warmup_ratio=0.03,
-    lr_scheduler_type="cosine_with_restarts",
+    learning_rate=1e-5,                 # cooler than 1e-4
+    warmup_ratio=0.01,
+    lr_scheduler_type="cosine",
     weight_decay=0.05,
-    max_grad_norm=2.0,
+    max_grad_norm=1.0,
     gradient_accumulation_steps=24,     # effective batch = 24 (1 x 24) - restored from 12     
 
     fp16=True,
