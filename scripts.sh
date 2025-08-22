@@ -68,6 +68,15 @@ case "$1" in
         tensorboard --logdir runs/qwen3b_8bit --port 6006
         ;;
     
+    # Model testing
+    "model-test")
+        # Forward remaining args to the tester
+        python scripts/testing/model_testing.py "${@:2}"
+        ;;
+    "model-test-help")
+        python scripts/testing/model_testing.py --help
+        ;;
+    
     # Help for scripts requiring arguments
     "compare-help")
         python scripts/testing/compare_baseline_vs_lora.py --help
@@ -115,6 +124,10 @@ case "$1" in
         echo "  ./scripts.sh gpu                # Check GPU status"
         echo "  ./scripts.sh logs               # View recent training logs"
         echo "  ./scripts.sh tensorboard        # Start TensorBoard"
+        echo ""
+        echo "Model Testing:"
+        echo "  ./scripts.sh model-test --help  # Show tester flags"
+        echo "  ./scripts.sh model-test --models 7b 14b --quant auto --short-tokens 100 --long-tokens 256"
         ;;
     
     *)

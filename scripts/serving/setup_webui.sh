@@ -33,6 +33,18 @@ for arg in "$@"; do
             exec > >(tee -a "$LOGFILE") 2>&1
             shift
             ;;
+        --host=*) VLLM_HOST="${arg#*=}" ;;
+        --port=*) VLLM_PORT="${arg#*=}" ;;
+        --webui-port=*) WEBUI_PORT="${arg#*=}" ;;
+        --model-path=*) MODEL_PATH="${arg#*=}" ;;
+        --model-name=*) MODEL_NAME="${arg#*=}" ;;
+        --ctx=*|--max-model-len=*) MAX_MODEL_LEN="${arg#*=}" ;;
+        --max-seqs=*|--max-num-seqs=*) MAX_NUM_SEQS="${arg#*=}" ;;
+        --gpu-mem=*|--gpu-memory-utilization=*) GPU_MEM_UTIL="${arg#*=}" ;;
+        --swap-space=*) SWAP_SPACE_GB="${arg#*=}" ;;
+        --rope=*|--rope-scaling=*) ROPE_SCALING="${arg#*=}" ;;
+        --max-output-tokens=*) MAX_OUTPUT_TOKENS="${arg#*=}" ;;
+        --max-completions=*) MAX_COMPLETIONS="${arg#*=}" ;;
         *)
             # Keep other arguments for main function
             ;;
@@ -47,13 +59,25 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
-VLLM_HOST="0.0.0.0"
-VLLM_PORT="8000"
-WEBUI_PORT="3000"
+# Configuration (defaults; can be overridden via flags or env)
+VLLM_HOST="${VLLM_HOST:-0.0.0.0}"
+VLLM_PORT="${VLLM_PORT:-8000}"
+WEBUI_PORT="${WEBUI_PORT:-3000}"
 # Use absolute path for the model to avoid CWD issues
-MODEL_PATH="$REPO_ROOT/outputs/qwen3b_merged"
-MODEL_NAME="qwen-coder-3b"
+MODEL_PATH="${MODEL_PATH:-$REPO_ROOT/outputs/qwen3b_merged}"
+MODEL_NAME="${MODEL_NAME:-qwen-coder-3b}"
+
+# vLLM runtime controls
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-4096}"
+MAX_NUM_SEQS="${MAX_NUM_SEQS:-2}"
+GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.92}"
+SWAP_SPACE_GB="${SWAP_SPACE_GB:-8}"
+ROPE_SCALING="${ROPE_SCALING:-}"    # e.g. "type=linear,factor=2.0" (optional)
+
+# Client-soft caps (for UIs). Note: vLLM itself doesn't enforce these.
+MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-512}"
+MAX_COMPLETIONS="${MAX_COMPLETIONS:-1}"
+
 START_TIME=$(date +%s)
 
 # Logging functions with timestamps
@@ -197,15 +221,23 @@ start_vllm() {
         vllm_cmd="vllm"  # Fallback to PATH
     fi
     
-    local full_cmd="$vllm_cmd serve $MODEL_PATH --host $VLLM_HOST --port $VLLM_PORT --max-model-len 2048 --gpu-memory-utilization 0.8 --max-num-seqs 16 --served-model-name $MODEL_NAME"
+    # Build command with configured limits
+    local rope_arg=""
+    if [ -n "$ROPE_SCALING" ]; then
+        rope_arg="--rope-scaling $ROPE_SCALING"
+        log_info "🧵 Enabling RoPE scaling: $ROPE_SCALING"
+    fi
+    local full_cmd="$vllm_cmd serve $MODEL_PATH --host $VLLM_HOST --port $VLLM_PORT --max-model-len $MAX_MODEL_LEN --gpu-memory-utilization $GPU_MEM_UTIL --swap-space $SWAP_SPACE_GB --max-num-seqs $MAX_NUM_SEQS $rope_arg --served-model-name $MODEL_NAME"
     log_verbose "Command: $full_cmd"
     
     nohup "$vllm_cmd" serve "$MODEL_PATH" \
         --host "$VLLM_HOST" \
         --port "$VLLM_PORT" \
-        --max-model-len 2048 \
-        --gpu-memory-utilization 0.8 \
-        --max-num-seqs 16 \
+        --max-model-len "$MAX_MODEL_LEN" \
+        --gpu-memory-utilization "$GPU_MEM_UTIL" \
+        --swap-space "$SWAP_SPACE_GB" \
+        --max-num-seqs "$MAX_NUM_SEQS" \
+        ${ROPE_SCALING:+--rope-scaling "$ROPE_SCALING"} \
         --served-model-name "$MODEL_NAME" \
         > vllm.log 2>&1 &
     
@@ -403,6 +435,8 @@ setup_webui() {
         -e WEBUI_NAME="Qwen Coder Assistant" \
         -e WEBUI_AUTH=true \
         -e PORT=$WEBUI_PORT \
+        -e WEBUI_MAX_OUTPUT_TOKENS="$MAX_OUTPUT_TOKENS" \
+        -e WEBUI_MAX_COMPLETIONS="$MAX_COMPLETIONS" \
         -v open-webui-data:/app/backend/data \
         --restart unless-stopped \
         "$WEBUI_IMAGE"
@@ -470,6 +504,8 @@ services:
       - WEBUI_AUTH=true
       - PORT=$WEBUI_PORT
       - WEBUI_URL=http://$TAILSCALE_IP:$WEBUI_PORT
+      - WEBUI_MAX_OUTPUT_TOKENS=$MAX_OUTPUT_TOKENS
+      - WEBUI_MAX_COMPLETIONS=$MAX_COMPLETIONS
     volumes:
       - ./data:/app/backend/data
       - ./uploads:/app/backend/uploads
@@ -602,7 +638,7 @@ test_system() {
         -d '{ \
             "model": "'$MODEL_NAME'", \
             "messages": [{"role": "user", "content": "Hello, respond with just OK"}], \
-            "max_tokens": 10 \
+            "max_tokens": '$MAX_OUTPUT_TOKENS' \
         }')
     
     if echo "$RESPONSE" | grep -q "choices"; then
@@ -652,6 +688,8 @@ show_status() {
     echo "💡 Tips:"
     echo "   • First visit will require account creation"
     echo "   • Model name in WebUI: '$MODEL_NAME'"
+    echo "   • vLLM ctx: $MAX_MODEL_LEN, max seqs: $MAX_NUM_SEQS, rope: ${ROPE_SCALING:-none}"
+    echo "   • Client soft caps (WebUI env): max_tokens=$MAX_OUTPUT_TOKENS, n=$MAX_COMPLETIONS"
     echo "   • For debugging: $0 --verbose or $0 --debug"
     if [ "$DEBUG" = true ] || [ "$VERBOSE" = true ]; then
         echo ""
@@ -671,9 +709,21 @@ show_usage() {
     echo "  $0 [OPTIONS] [COMMAND]"
     echo ""
     echo "OPTIONS:"
-    echo "  --verbose    Show detailed output during execution"
-    echo "  --debug      Enable full debugging with timestamped log file"
-    echo "  --help       Show this help message"
+    echo "  --verbose                      Show detailed output during execution"
+    echo "  --debug                        Enable full debugging with timestamped log file"
+    echo "  --help                         Show this help message"
+    echo "  --host=0.0.0.0                vLLM bind host"
+    echo "  --port=8000                   vLLM port"
+    echo "  --webui-port=3000             WebUI port"
+    echo "  --model-path=/abs/path        HF model or merged path"
+    echo "  --model-name=name             Served model name (OpenAI id)"
+    echo "  --ctx=4096                    vLLM --max-model-len"
+    echo "  --max-seqs=16                 vLLM --max-num-seqs (concurrency)"
+    echo "  --gpu-mem=0.8                 vLLM --gpu-memory-utilization"
+    echo "  --swap-space=8                vLLM --swap-space (GB)"
+    echo "  --rope=type=linear,factor=2.0 vLLM --rope-scaling (optional)"
+    echo "  --max-output-tokens=512       Soft cap for UI defaults"
+    echo "  --max-completions=1           Soft cap for UI defaults"
     echo ""
     echo "COMMANDS:"
     echo "  full              Complete setup (default) - vLLM + WebUI + scripts"
@@ -716,18 +766,13 @@ main() {
         log_verbose "Verbose mode enabled - detailed output"
     fi
     
-    # Filter out our flags to get the actual command
+    # Determine the command: first non-flag arg, else "full"
     local command="full"
     for arg in "$@"; do
-        case $arg in
-            --verbose|--debug|--help|-h)
-                # Skip our flags
-                ;;
-            *)
-                command="$arg"
-                break
-                ;;
-        esac
+        if [[ "$arg" != --* ]]; then
+            command="$arg"
+            break
+        fi
     done
     
     log_verbose "Executing command: $command"

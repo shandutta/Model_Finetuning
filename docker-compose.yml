@@ -14,8 +14,9 @@ services:
       - WEBUI_NAME=Qwen Coder Assistant
       - WEBUI_AUTH=true
       - PORT=3000
-      - WEBUI_URL=http://[0;32m[2025-08-21 22:29:52] [INFO][0m Tailscale IP detected: 100.84.236.65
-100.84.236.65:3000
+      - WEBUI_URL=http://100.84.236.65:3000
+      - WEBUI_MAX_OUTPUT_TOKENS=512
+      - WEBUI_MAX_COMPLETIONS=1
     volumes:
       - ./data:/app/backend/data
       - ./uploads:/app/backend/uploads

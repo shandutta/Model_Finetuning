@@ -98,7 +98,8 @@ args = SFTConfig(
     dataloader_pin_memory=True,
     per_device_train_batch_size=1,
     dataset_text_field="text",
-    max_length=2048,                    
+    max_length=2048,                    # Training context length
+    # Note: Model is served with 4096 tokens (2x training length) using KV cache offloading
     # max_steps=10,  # <- uncomment for a dry-run sanity check
 
     num_train_epochs=20,

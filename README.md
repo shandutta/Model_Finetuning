@@ -99,6 +99,36 @@ Training progress is monitored via TensorBoard and tmux sessions:
 tensorboard --logdir runs/qwen3b_8bit --port 6006
 ```
 
+## Serving (vLLM + WebUI) and Limits
+
+Start the local API server (OpenAI-compatible via vLLM) and WebUI (defaults tuned for 11GB GPUs):
+
+```bash
+# Start vLLM + WebUI with defaults (ctx=4096, max-seqs=2, gpu-mem=0.92)
+scripts/serving/setup_webui.sh
+
+# Only vLLM (headless)
+scripts/serving/setup_webui.sh start_vllm_only
+
+# Configure context and soft caps
+scripts/serving/setup_webui.sh \
+  --ctx=8192 \
+  --max-seqs=8 \
+  --rope=type=linear,factor=2.0 \
+  --max-output-tokens=256 \
+  --max-completions=1
+```
+
+Notes:
+- `--ctx` maps to vLLM `--max-model-len`. You can enable RoPE scaling with `--rope`, but quality may degrade.
+- `--max-output-tokens` and `--max-completions` are passed to the WebUI as defaults; vLLM does not enforce these without a proxy.
+- To avoid 400 errors from overlong prompts, prefer truncation in your client (e.g., Continue) and keep added context lean.
+
+Continue (VS Code) quick tips to stay within context:
+- Set a model-level input cap and truncation in `~/.continue/config.json` (names vary by version: look for `truncateToFit`, `maxInputTokens`, `maxPromptTokens`, or similar).
+- Limit context providers (disable repo-wide or diff providers by default) and unpin large contexts.
+- Keep `n` (completions) to 1 and set `maxTokens` to a sane default (e.g., 256–512).
+
 ## Use Cases
 
 - **Code completion** - Generate contextually relevant code suggestions

@@ -63,8 +63,9 @@ start_vllm() {
     nohup .venv/bin/vllm serve "$MODEL_PATH" \
         --host "$VLLM_HOST" \
         --port "$VLLM_PORT" \
-        --max-model-len 2048 \
+        --max-model-len 4096 \
         --gpu-memory-utilization 0.8 \
+        --swap-space 8 \
         --max-num-seqs 16 \
         --served-model-name "$MODEL_NAME" \
         > vllm.log 2>&1 &
