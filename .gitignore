@@ -56,3 +56,20 @@ events.out.tfevents.*
 # Temporary files
 *.tmp
 *.temp
+
+# Configuration and sensitive files
+.env
+GEMINI.md
+CLAUDE.md
+.webui_secret_key
+
+# vLLM runtime files
+vllm.log
+vllm.pid
+
+# Hidden directories (dot folders)
+.*/
+!.git/
+!.github/
+!.gitignore
+!.gitkeep

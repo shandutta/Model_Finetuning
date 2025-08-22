@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>vLLM Local Chat</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 820px; margin: 24px auto; }
+  #log { border: 1px solid #333; padding: 12px; height: 60vh; overflow: auto; white-space: pre-wrap; }
+  .msg { margin: 8px 0; }
+  .user { color: #8ab4f8; }
+  .bot  { color: #c5e478; }
+  input, button { font-size: 16px; padding: 10px; }
+</style>
+<div>
+  <h2>Qwen Coder 3B FT — Local (vLLM)</h2>
+  <div id="log"></div>
+  <div style="margin-top:12px;">
+    <input id="inp" placeholder="Type a message…" style="width:75%;" />
+    <button id="send">Send</button>
+  </div>
+</div>
+<script>
+const ENDPOINT = "http://127.0.0.1:8000/v1/chat/completions";
+const MODEL    = "qwen-coder-3b";
+let history = [];
+
+function add(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  div.textContent = (role === 'user' ? 'You: ' : 'Model: ') + text;
+  document.getElementById('log').appendChild(div);
+  document.getElementById('log').scrollTop = 1e9;
+}
+
+async function send() {
+  const val = document.getElementById('inp').value.trim();
+  if (!val) return;
+  document.getElementById('inp').value = '';
+  history.push({role:"user", content: val});
+  add("user", val);
+
+  const body = {
+    model: MODEL,
+    messages: history,
+    temperature: 0.2,
+    stream: true
+  };
+
+  const resp = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok || !resp.body) {
+    add("assistant", `Request failed: ${resp.status} ${resp.statusText}`);
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let acc = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = dec.decode(value);
+    for (const line of chunk.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") break;
+      try {
+        const j = JSON.parse(data);
+        const delta = j.choices?.[0]?.delta?.content ?? "";
+        if (delta) acc += delta;
+      } catch {}
+    }
+  }
+
+  add("assistant", acc);
+  history.push({role:"assistant", content: acc});
+}
+
+document.getElementById('send').onclick = send;
+document.getElementById('inp').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+</script>

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_BASE_URL=http://host.docker.internal:8000/v1
+      - OPENAI_API_KEY=not-needed
+      - WEBUI_NAME=Qwen Coder Assistant
+      - WEBUI_AUTH=true
+      - PORT=3000
+      - WEBUI_URL=http://[0;32m[2025-08-21 22:29:52] [INFO][0m Tailscale IP detected: 100.84.236.65
+100.84.236.65:3000
+    volumes:
+      - ./data:/app/backend/data
+      - ./uploads:/app/backend/uploads
+    restart: unless-stopped
+    depends_on:
+      - vllm-healthcheck
+  
+  vllm-healthcheck:
+    image: curlimages/curl:latest
+    container_name: vllm-healthcheck
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["sh", "-c", "until curl -f http://host.docker.internal:8000/health; do echo 'Waiting for vLLM...'; sleep 5; done; echo 'vLLM is ready!'"]
