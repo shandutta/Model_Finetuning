@@ -171,7 +171,7 @@ def test_model(
         monitor_thread = threading.Thread(target=monitor_cpu_memory_thread, args=(stop_monitoring, peak_cpu_memory))
         monitor_thread.start()
 
-        # Load model with adaptive OOM fallbacks
+        # Load model with adaptive OOM/offload fallbacks
         print("Loading model...")
         # Configure base loader kwargs
         load_kwargs = {
@@ -181,6 +181,17 @@ def test_model(
             "trust_remote_code": True,
             "low_cpu_mem_usage": True,
         }
+
+        # Guard: 4-bit quantization cannot offload layers to CPU/disk.
+        # If offloading is requested (via max_memory including "cpu"), switch to 8-bit with FP32 CPU offload.
+        if max_memory and getattr(quantization_config, "load_in_4bit", False) and ("cpu" in max_memory):
+            print("[load] 4-bit + CPU offload is unsupported. Switching to 8-bit with FP32 CPU offload.")
+            quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+            try:
+                quantization_config.llm_int8_enable_fp32_cpu_offload = True
+            except Exception:
+                pass
+            load_kwargs["quantization_config"] = quantization_config
 
         # If using 8-bit, enable FP32 CPU offload on the BitsAndBytesConfig itself
         # (passing it as a top-level kwarg is not supported by all model classes).
@@ -406,14 +417,9 @@ def main():
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
         {
-            "name": "Qwen2.5-Coder-14B-Instruct (4-bit + moderate offload)",
+            "name": "Qwen2.5-Coder-14B-Instruct (8-bit + moderate offload)",
             "model": "Qwen/Qwen2.5-Coder-14B-Instruct", 
-            "quantization": BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-            ),
+            "quantization": BitsAndBytesConfig(load_in_8bit=True),
             # Use integer device index for GPU key (0)
             # Ensure sufficient CPU headroom; floor at 12GB
             "max_memory": {0: (args.gpu_mem or "9GB"), "cpu": f"{max(12, min(24, cpu_budget_gb))}GB"},
@@ -421,14 +427,9 @@ def main():
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
         {
-            "name": "Qwen2.5-Coder-14B-Instruct (4-bit + aggressive offload)",
+            "name": "Qwen2.5-Coder-14B-Instruct (8-bit + aggressive offload)",
             "model": "Qwen/Qwen2.5-Coder-14B-Instruct", 
-            "quantization": BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-            ),
+            "quantization": BitsAndBytesConfig(load_in_8bit=True),
             # Use integer device index for GPU key (0)
             # Ensure more CPU headroom for aggressive mode; floor at 16GB
             "max_memory": {0: (args.gpu_mem or "7GB"), "cpu": f"{max(16, min(32, cpu_budget_gb))}GB"},
@@ -450,14 +451,9 @@ def main():
     # Add 32B extreme offload when requested (after initial filtering)
     if "32b" in args.models and args.quant in ("4bit", "both", "auto"):
         filtered.append({
-            "name": "Qwen2.5-Coder-32B-Instruct (4-bit + extreme offload)",
+            "name": "Qwen2.5-Coder-32B-Instruct (8-bit + extreme offload)",
             "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
-            "quantization": BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-            ),
+            "quantization": BitsAndBytesConfig(load_in_8bit=True),
             # Use integer device index for GPU key (0)
             "max_memory": {0: (args.gpu_mem or "8GB"), "cpu": f"{min(64, cpu_budget_gb)}GB"},
             "flash_attention": args.fa2,
