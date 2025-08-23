@@ -172,6 +172,7 @@ def test_model(
 
         # Load model with adaptive OOM fallbacks
         print("Loading model...")
+        # Configure base loader kwargs
         load_kwargs = {
             "quantization_config": quantization_config,
             "device_map": "auto",
@@ -180,12 +181,15 @@ def test_model(
             "low_cpu_mem_usage": True,
         }
 
-        # If we're using int8 quantization and any layers end up on CPU,
-        # Transformers requires enabling FP32 CPU offload for those modules.
-        # This prevents the "Some modules are dispatched on the CPU or the disk" error.
+        # If using 8-bit, enable FP32 CPU offload on the BitsAndBytesConfig itself
+        # (passing it as a top-level kwarg is not supported by all model classes).
         if getattr(quantization_config, "load_in_8bit", False):
-            load_kwargs["llm_int8_enable_fp32_cpu_offload"] = True
-            print("[load] Enabling int8 FP32 CPU offload for compatibility with CPU-dispatched modules")
+            try:
+                quantization_config.llm_int8_enable_fp32_cpu_offload = True
+                print("[load] Enabling int8 FP32 CPU offload (set on BitsAndBytesConfig)")
+            except Exception:
+                # Proceed even if the attribute isn't available in this version
+                pass
 
         if max_memory:
             load_kwargs["max_memory"] = max_memory
@@ -229,8 +233,6 @@ def test_model(
                 if getattr(quantization_config, "load_in_8bit", False):
                     print("[load] Still OOM. Falling back to 4-bit quantization...")
                     load_kwargs.pop("quantization_config", None)
-                    # Remove int8-only offload flag when switching to 4-bit
-                    load_kwargs.pop("llm_int8_enable_fp32_cpu_offload", None)
                     load_kwargs["quantization_config"] = BitsAndBytesConfig(
                         load_in_4bit=True,
                         bnb_4bit_quant_type="nf4",
