@@ -5,6 +5,7 @@ Tests Qwen2.5-Coder models with different quantization strategies
 """
 
 import argparse
+import os
 import torch
 import gc
 import time
@@ -192,7 +193,12 @@ def test_model(
                 pass
 
         if max_memory:
+            # Ensure a stable disk offload folder for large models
+            offload_dir = os.path.join("outputs", "offload_cache")
+            os.makedirs(offload_dir, exist_ok=True)
             load_kwargs["max_memory"] = max_memory
+            load_kwargs["offload_folder"] = offload_dir
+            load_kwargs["offload_state_dict"] = True
 
         if flash_attention:
             # Guard FlashAttention for unsupported GPUs (e.g., RTX 2080 Ti SM75)
@@ -409,7 +415,8 @@ def main():
                 bnb_4bit_use_double_quant=True,
             ),
             # Use integer device index for GPU key (0)
-            "max_memory": {0: (args.gpu_mem or "9GB"), "cpu": f"{min(24, cpu_budget_gb)}GB"},
+            # Ensure sufficient CPU headroom; floor at 12GB
+            "max_memory": {0: (args.gpu_mem or "9GB"), "cpu": f"{max(12, min(24, cpu_budget_gb))}GB"},
             "flash_attention": args.fa2,
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
@@ -423,7 +430,8 @@ def main():
                 bnb_4bit_use_double_quant=True,
             ),
             # Use integer device index for GPU key (0)
-            "max_memory": {0: (args.gpu_mem or "7GB"), "cpu": f"{min(32, cpu_budget_gb)}GB"},
+            # Ensure more CPU headroom for aggressive mode; floor at 16GB
+            "max_memory": {0: (args.gpu_mem or "7GB"), "cpu": f"{max(16, min(32, cpu_budget_gb))}GB"},
             "flash_attention": args.fa2,
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
