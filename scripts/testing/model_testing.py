@@ -137,7 +137,7 @@ def _can_use_flash_attention_on_this_gpu() -> bool:
 def test_model(
     model_name: str,
     quantization_config: BitsAndBytesConfig,
-    max_memory: Optional[Dict[str, str]] = None,
+    max_memory: Optional[Dict[int | str, str]] = None,
     test_prompt: Optional[str] = None,
     flash_attention: bool = False,
     test_long_generation: bool = False,
@@ -192,12 +192,13 @@ def test_model(
                 print("[warn] FlashAttention-2 not supported on this GPU; falling back to eager")
                 load_kwargs["attn_implementation"] = "eager"
 
-        def _auto_offload_map() -> Dict[str, str]:
+        def _auto_offload_map() -> Dict[int | str, str]:
             avail_cpu_gb = int(psutil.virtual_memory().available / 1e9)
             cpu_budget = max(4, avail_cpu_gb - 6)
             # Conservative GPU budget for 2080 Ti to avoid spillover
             gpu_budget = "8GB"
-            return {"0": gpu_budget, "cpu": f"{min(32, cpu_budget)}GB"}
+            # Use integer device index for GPU key (0), not string "0"
+            return {0: gpu_budget, "cpu": f"{min(32, cpu_budget)}GB"}
 
         def _load_with(kwargs):
             clear_memory()
@@ -396,7 +397,8 @@ def main():
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
             ),
-            "max_memory": {"0": (args.gpu_mem or "9GB"), "cpu": f"{min(24, cpu_budget_gb)}GB"},
+            # Use integer device index for GPU key (0)
+            "max_memory": {0: (args.gpu_mem or "9GB"), "cpu": f"{min(24, cpu_budget_gb)}GB"},
             "flash_attention": args.fa2,
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
@@ -409,7 +411,8 @@ def main():
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
             ),
-            "max_memory": {"0": (args.gpu_mem or "7GB"), "cpu": f"{min(32, cpu_budget_gb)}GB"},
+            # Use integer device index for GPU key (0)
+            "max_memory": {0: (args.gpu_mem or "7GB"), "cpu": f"{min(32, cpu_budget_gb)}GB"},
             "flash_attention": args.fa2,
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         },
@@ -436,7 +439,8 @@ def main():
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
             ),
-            "max_memory": {"0": (args.gpu_mem or "8GB"), "cpu": f"{min(64, cpu_budget_gb)}GB"},
+            # Use integer device index for GPU key (0)
+            "max_memory": {0: (args.gpu_mem or "8GB"), "cpu": f"{min(64, cpu_budget_gb)}GB"},
             "flash_attention": args.fa2,
             "test_long": (args.long_tokens > 0) and (not args.no_long)
         })
